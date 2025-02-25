@@ -95,8 +95,10 @@ class LeggedRobotCfg(BaseConfig):
         randomize_base_mass = False
         added_mass_range = [-1., 1.]
         push_robots = True
+        push_body_force_range = 200
         push_interval_s = 15
-        max_push_vel_xy = 1.
+        max_push_vel_xy = 10.
+        max_push_force = 200  #N
 
     class rewards:
         class scales:
@@ -205,7 +207,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         max_iterations = 1500 # number of policy updates
 
         # logging
-        save_interval = 50 # check for potential saves every this many iterations
+        save_interval = 1000 # check for potential saves every this many iterations
         experiment_name = 'test'
         run_name = ''
         # load and resume

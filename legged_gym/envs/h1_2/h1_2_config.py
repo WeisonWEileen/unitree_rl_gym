@@ -75,7 +75,14 @@ class H1_2RoughCfg(LeggedRobotCfg):
         added_mass_range = [-1., 3.]
         push_robots = True
         push_interval_s = 5
-        max_push_vel_xy = 1.5
+        max_push_vel_xy = 1.0
+
+
+        #@TODO: implement these
+        # max_push_vel_z = 0.3
+        max_push_vel_z = 10.0
+
+
 
     class asset(LeggedRobotCfg.asset):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/h1_2/h1_2_12dof.urdf'
@@ -89,7 +96,7 @@ class H1_2RoughCfg(LeggedRobotCfg):
 
     class rewards(LeggedRobotCfg.rewards):
         soft_dof_pos_limit = 0.9
-        base_height_target = 1.0
+        base_height_target = 0.9
 
         class scales(LeggedRobotCfg.rewards.scales):
             tracking_lin_vel = 1.0
@@ -125,6 +132,6 @@ class H1_2RoughCfgPPO(LeggedRobotCfgPPO):
         entropy_coef = 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         policy_class_name = "ActorCriticRecurrent"
-        max_iterations = 10000
+        max_iterations = 5000
         run_name = ''
         experiment_name = 'h1_2'

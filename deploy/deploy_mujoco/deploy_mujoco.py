@@ -13,7 +13,7 @@ def get_gravity_orientation(quaternion):
     qx = quaternion[1]
     qy = quaternion[2]
     qz = quaternion[3]
-
+    
     gravity_orientation = np.zeros(3)
 
     gravity_orientation[0] = 2 * (-qz * qx + qw * qy)
@@ -26,6 +26,7 @@ def get_gravity_orientation(quaternion):
 def pd_control(target_q, q, kp, target_dq, dq, kd):
     """Calculates torques from position commands"""
     return (target_q - q) * kp + (target_dq - dq) * kd
+
 
 
 if __name__ == "__main__":
@@ -79,7 +80,8 @@ if __name__ == "__main__":
     with mujoco.viewer.launch_passive(m, d) as viewer:
         # Close the viewer automatically after simulation_duration wall-seconds.
         start = time.time()
-        while viewer.is_running() and time.time() - start < simulation_duration:
+        # while viewer.is_running() and time.time() - start < simulation_duration:
+        while True:
             step_start = time.time()
             tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
             d.ctrl[:] = tau
@@ -92,6 +94,7 @@ if __name__ == "__main__":
                 # Apply control signal here.
 
                 # create observation
+                # print(d.qvel.shape)
                 qj = d.qpos[7:]
                 dqj = d.qvel[6:]
                 quat = d.qpos[3:7]
@@ -120,6 +123,8 @@ if __name__ == "__main__":
                 action = policy(obs_tensor).detach().numpy().squeeze()
                 # transform action to target_dof_pos
                 target_dof_pos = action * action_scale + default_angles
+                print('hum_target_dof_pos:',target_dof_pos)
+
 
             # Pick up changes to the physics state, apply perturbations, update options from GUI.
             viewer.sync()

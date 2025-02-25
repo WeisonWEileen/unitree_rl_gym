@@ -46,6 +46,7 @@ class LeggedRobot(BaseTask):
         self._prepare_reward_function()
         self.init_done = True
 
+
     def step(self, actions):
         """ Apply actions, simulate, call self.post_physics_step()
 
@@ -70,6 +71,10 @@ class LeggedRobot(BaseTask):
             if self.device == 'cpu':
                 self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
+        
+        if self.cfg.domain_rand.push_robots and self.common_step_counter % self.cfg.domain_rand.push_interval == 0:
+            self._push_robots()
+
         self.post_physics_step()
 
         # return clipped obs, clipped states (None), rewards, dones and infos
@@ -106,8 +111,8 @@ class LeggedRobot(BaseTask):
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
         
-        if self.cfg.domain_rand.push_robots:
-            self._push_robots()
+        # if self.cfg.domain_rand.push_robots:
+        #     self._push_robots()
 
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
 
@@ -368,18 +373,44 @@ class LeggedRobot(BaseTask):
 
     def _push_robots(self):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity. 
+            Modified robots's state.
         """
-        env_ids = torch.arange(self.num_envs, device=self.device)
-        push_env_ids = env_ids[self.episode_length_buf[env_ids] % int(self.cfg.domain_rand.push_interval) == 0]
-        if len(push_env_ids) == 0:
-            return
-        max_vel = self.cfg.domain_rand.max_push_vel_xy
-        self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
+        # impulse
+        # env_ids = torch.arange(self.num_envs, device=self.device)
+        # push_env_ids = env_ids[self.episode_length_buf[env_ids] % int(self.cfg.domain_rand.push_interval) == 0]
+        # if len(push_env_ids) == 0:
+        #     return
+        # max_vel = self.cfg.domain_rand.max_push_vel_xy
+        # max_vel_z = self.cfg.domain_rand.max_push_vel_z
+        # # print("=========", max_vel_z)
+        # # self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
+        # self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y/z  
+        # self.root_states[:, 9:10] = torch_rand_float(-max_vel_z, 0, (self.num_envs,1), device=self.device) # lin vel z  
+        # env_ids_int32 = push_env_ids.to(dtype=torch.int32)
+        # self.gym.set_actor_root_state_tensor_indexed(self.sim,
+        #                                             gymtorch.unwrap_tensor(self.root_states),
+        #                                             gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
         
-        env_ids_int32 = push_env_ids.to(dtype=torch.int32)
-        self.gym.set_actor_root_state_tensor_indexed(self.sim,
-                                                    gymtorch.unwrap_tensor(self.root_states),
-                                                    gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
+        # force
+        # force_ori = torch.tensor([0.0, 0.0, 1.0])
+        # force_random = torch.randint(0, self.cfg.domain_rand.max_push_vel_z) * force_ori
+        # print(force_random)
+
+        forces_body = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
+
+        theta = 2.0 * torch.pi * torch.rand((self.num_envs, 1), device=self.device)
+        max_force = self.cfg.domain_rand.max_push_force
+        r = max_force * torch.rand((self.num_envs, 1), device=self.device)
+        fx = r * torch.cos(theta)
+        fy = r * torch.sin(theta)
+        fz = - r * torch.rand((self.num_envs, 1), device=self.device)
+
+        random_xy_forces = torch.cat((fx, fy, fz), dim=-1)  # shape: [num_envs, 3]
+        forces_body[:, self.pelvis_idx, :] = random_xy_forces
+        self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(forces_body), None, gymapi.LOCAL_SPACE) 
+        
+        
+
 
    
     
@@ -603,6 +634,8 @@ class LeggedRobot(BaseTask):
         self.termination_contact_indices = torch.zeros(len(termination_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(termination_contact_names)):
             self.termination_contact_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], termination_contact_names[i])
+        self.body_names_to_idx = self.gym.get_asset_rigid_body_dict(robot_asset)
+        self.pelvis_idx =  dict(self.body_names_to_idx).get('pelvis',None)
 
     def _get_env_origins(self):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
